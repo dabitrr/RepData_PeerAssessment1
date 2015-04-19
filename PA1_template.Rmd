@@ -1,25 +1,160 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
+title: "Reproducible Research (PA1)"
+author: "David Rodriguez"
+output:
   html_document:
-    keep_md: true
+    theme: cosmo
 ---
 
+##Loading and preprocessing the data
 
-## Loading and preprocessing the data
+Read the data having copied the source file in the working directory
+
+```{r}
+rawdata<-read.csv("activity.csv",colClasses=c("numeric","character","numeric"))
+missingvalues<-is.na(rawdata$steps)
+```
+
+There are three variables in the dataset:
+
+- steps: Number of steps taking in a 5-minute interval (missing values are coded as NA)
+
+- date: The date on which the measurement was taken in YYYY-MM-DD format
+
+- interval: Identifier for the 5-minute interval in which measurement was taken
+
+```{r, echo=FALSE}
+head(rawdata)
+```
+The total number of rows for this file is `r length(rawdata[,1])`.
+
+Before moving on, it is important to prepare the system loading the packages and setting the proper environment variables
+```{r warning=FALSE, results="hide", message=FALSE}
+library(dplyr)
+library(lattice)
+Sys.setlocale("LC_TIME", "English")
+```
+
+First transformation: the date from string to POSIX
+```{r}
+rawdate<-strptime(rawdata$date,format("%Y-%m-%d"))
+```
+
+Second transformation: create a new variable, the day of the week, and a factor based on these values (Weekday: Mon-Fri/ Weekend: Sat,Sun)
+```{r}
+  rawweekday<-weekdays(rawdate)
+  typeofday<-factor(rawweekday,ordered=TRUE)
+levels(typeofday)<-c("Weekday","Weekday","Weekend","Weekend","Weekday","Weekday","Weekday")
+```
+
+Merge the two new columns in the dataset
+```{r}
+finalrawdata<-cbind(rawdata,rawdate,typeofday)
+```
+
+Third transformation: obtain a secondary dataset discarding the missing values, to be used in the first part of the analysis
+```{r}
+rawdatawoNA<-finalrawdata[!missingvalues,]
+```
+The total number of rows for this clean dataset is `r length(rawdatawoNA[,1])`.
+
+##What is mean total number of steps taken per day?
+
+The objective of this section is to analyze the total number of steps per day.
+
+Firstly, create the summarized dataset: sum, mean and median of steps per day from the dataset without missing values
+```{r warning=FALSE, results="hide", message=FALSE}
+sumstepsbydate<-summarise(group_by(rawdatawoNA,rawdate),totalsteps=sum(steps),meansteps=mean(steps),mediansteps=median(steps))
+```
+
+Draw an histogram based on the total number of steps per date. The number of bars can vary depending on the volume of the data.
+```{r}
+hist(sumstepsbydate$totalsteps,20,main="Total Steps per Day",xlab="",ylab="",col="blue")
+```
+
+Report the mean and the median per date
+```{r}
+  plot(sumstepsbydate$rawdate,sumstepsbydate$meansteps,type="l",col="black",ylab="Total Steps",xlab="Dates")
+  lines(sumstepsbydate$rawdate,sumstepsbydate$mediansteps,type="l",col="red")
+legend("top",legend=c("Mean","Median"),col=c("black","red"),lty=c(1,1))
+
+```
+
+##What is the average daily activity pattern?
+
+Calculate the total number of steps per interval from the dataset without missing values 
+```{r warning=FALSE, results="hide", message=FALSE}
+sumstepsbyinterval<-summarise(group_by(rawdatawoNA,interval),totalsteps=sum(steps),meansteps=mean(steps))
+```
+
+Plot the total steps per interval
+```{r}
+plot(sumstepsbyinterval$interval,sumstepsbyinterval$totalsteps,type="p",main="Total Steps per Interval",xlab="",ylab="",col="blue")
+```
+
+The interval with the maximum total number of steps in average is `r sumstepsbyinterval$interval[which.max(sumstepsbyinterval$totalsteps)]`.
+
+```{r}
+sumstepsbyinterval[which.max(sumstepsbyinterval$totalsteps),]
+
+```
+
+##Imputing missing values
+
+Quick analysis of the missing values
+
+```{r}
+summary(missingvalues)
+```
+
+The missing values will be replaced by the average of each interval.
+
+```{r}
+##Duplicate the steps 
+modifiedsteps<-finalrawdata$steps
+for (i in 1:length(modifiedsteps)){
+  ##Replace NAs by the mean of the interval
+  if (is.na(modifiedsteps[i]))    {    
+    modifiedsteps[i]=sumstepsbyinterval$meansteps[sumstepsbyinterval$interval==finalrawdata$interval[i]]   
+  }  
+}
+finaldata<-cbind(finalrawdata,modifiedsteps)
+```
+
+The dataset _finaldata_ contains the original data plus the additional columns (_rawdate_, _typeofday_ and _modifiedsteps_).
+
+Summarise by date to create the same graphs as the previous point but based on the complete and modified dataset
+
+```{r warning=FALSE, results="hide", message=FALSE}
+sumnewstepsbydate<-summarise(group_by(finaldata,rawdate),totalsteps=sum(modifiedsteps),meansteps=mean(modifiedsteps),mediansteps=median(modifiedsteps))
+```
+
+Draw an histogram based on the total number of steps per date
+```{r}
+hist(sumnewstepsbydate$totalsteps,20,main="Total Steps per Day (modified dataset)",xlab="",ylab="",col="blue")
+```
+
+Report the mean and the median per date for the new dataset
+```{r}
+  plot(sumnewstepsbydate$rawdate,sumnewstepsbydate$meansteps,type="l",col="black",ylab="Total Steps",xlab="Dates")
+  lines(sumnewstepsbydate$rawdate,sumnewstepsbydate$mediansteps,type="l",col="red")
+legend("top",legend=c("Mean","Median"),col=c("black","red"),lty=c(1,1))
+
+```
+
+##Are there differences in activity patterns between weekdays and weekends?
+
+Behaviour according to the day of the week where the measure has been taken is likely change. In particular, it might be relevant to distinguish between weekday and weekend.
+
+Calculate the total number of steps per interval and type of day based on the complete and modified dataset
+```{r warning=FALSE, results="hide", message=FALSE}
+summarybyintervalandtypeofday<-summarise(group_by(finaldata,typeofday,interval),totalsteps=sum(modifiedsteps),meansteps=mean(modifiedsteps))
+```
+
+Finally plot the results
+```{r}
+xyplot(meansteps~interval | typeofday, data=summarybyintervalandtypeofday, layout=c(1,2),type="l")
+```
 
 
 
-## What is mean total number of steps taken per day?
-
-
-
-## What is the average daily activity pattern?
-
-
-
-## Imputing missing values
-
-
-
-## Are there differences in activity patterns between weekdays and weekends?
